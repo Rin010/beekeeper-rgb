@@ -38,12 +38,12 @@
 - DDP（UDP 4048）及 E1.31 / sACN（UDP 5568）RGB24 接收。
 - 自动使用原厂单灯模式或已安装自定义固件的 24 灯珠模式。
 - 约 3 秒无网络数据后恢复本地颜色与光效；手动修改灯光会退出网络接管。
-- GUI 刷入自定义 MCU 应用固件或刷回内置原版应用镜像，包含风险提示、系统与镜像校验、后台强制 10 秒等待和进度显示。
+- GUI 刷入自定义 MCU 应用固件或刷回内置原版应用镜像，**风险操作，切勿断电**。
 
 ## 安装
 
 1. 从 [Releases](https://github.com/Rin010/beekeeper-rgb/releases) 下载 `Beekeeper-RGB-v1.0.0-magisk.zip`，在已启动的系统中通过 Magisk 安装。
-2. 安装包已内置配套 LSPosed 模块 APK，并自动安装或更新，**无需再单独安装 APK**。LSPosed 框架本身需提前安装并启用。
+2. 安装包已内置配套 LSPosed 模块 APK。LSPosed 框架本身需提前安装并启用。
 3. 首次在 LSPosed 启用“装饰灯自定义颜色”，勾选推荐作用域 `com.xiaomi.mitv.settings` 和 `mitv.service`。
 4. 重启后打开“设置 → 通用设置 → 氛围 → 炫彩灯”。“自定义颜色”和“网络灯控”位于“屏幕同色”上方。
 

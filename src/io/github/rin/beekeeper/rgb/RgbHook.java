@@ -44,7 +44,7 @@ public final class RgbHook implements IXposedHookLoadPackage {
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lp) {
         if (!lp.packageName.equals("com.xiaomi.mitv.settings") && !lp.packageName.equals("mitv.service")) return;
-        log("loaded v1.0.0 in " + lp.packageName);
+        log("loaded v1.4.1 in " + lp.packageName);
         try {
             XposedHelpers.findAndHookMethod("mitv.display.PictureSettingsManager", lp.classLoader,
                     "getInstance", new XC_MethodHook() {

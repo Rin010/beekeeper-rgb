@@ -16,7 +16,7 @@ for script,args,source,target in [
     subprocess.run([sys.executable,str(here/script),*args],check=True)
     binary=(here.parent/'build/native'/source).read_bytes()
     (module/'bin'/target).write_bytes(binary)
-    (module/'firmware'/(target+'.sha256')).write_text(hashlib.sha256(binary).hexdigest()+'\n',encoding='ascii')
+    (module/'firmware'/(target+'.sha256')).write_bytes((hashlib.sha256(binary).hexdigest()+'\n').encode('ascii'))
 for name,expected in [('original.bin','c78ea17cfe2c5278964e4cb57232db19fca1414b4fc5dcdb1df89faf8376145d'),('pixels.bin','69f4c469f391dabeef52489d01b3c41fbe7fe16297b4ebea144e0afdef793b5f')]:
     assert hashlib.sha256((module/'firmware'/name).read_bytes()).hexdigest()==expected,name
 assert candidate((module/'firmware/original.bin').read_bytes())[0]==(module/'firmware/pixels.bin').read_bytes()

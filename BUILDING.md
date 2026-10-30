@@ -34,7 +34,7 @@ python -m pip install -r requirements-build.txt
 python build.py
 ```
 
-生成 `dist/Beekeeper-RGB-v1.0.0.apk`、`dist/Beekeeper-RGB-v1.0.0-magisk.zip` 和 `dist/SHA256SUMS.txt`。构建会清理本仓库内固定的 `build/` 目录，运行协议单元测试并检查 APK 签名。
+生成 `dist/Beekeeper-RGB-v1.4.1.apk`、`dist/Beekeeper-RGB-v1.4.1-magisk.zip` 和 `dist/SHA256SUMS.txt`。构建会清理本仓库内固定的 `build/` 目录，运行协议单元测试并检查 APK 签名。
 
 不指定私有密钥时会在被 Git 忽略的 `.signing/` 生成本地调试密钥。使用不同密钥签名的 APK 不能直接覆盖已安装版本。不要提交签名密钥或密码文件。
 

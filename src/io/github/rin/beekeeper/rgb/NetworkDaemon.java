@@ -27,6 +27,12 @@ public final class NetworkDaemon {
     private Om2Output output;
     private McuManager mcu;
     private boolean pixelMode;
+    private final FramePacer pacer=new FramePacer();
+    private volatile Map<String,String> settingsSnapshot=Collections.emptyMap();
+    private volatile boolean settingsReady;
+    private volatile String pendingStatus="",pendingMetrics="";
+    private volatile long outputFrames,outputErrors;
+    private long previousOutputAt,minOutputGap=Long.MAX_VALUE,maxOutputGap;
     private Object hidl;
     private java.lang.reflect.Method setLed;
     private Context systemContext;
@@ -70,16 +76,21 @@ public final class NetworkDaemon {
         try {daemon.run();} finally {daemon.closePorts();daemon.release();lock.release();lockFile.close();}
     }
     private void run() throws Exception {
-        long poll=0,statusAt=0;
+        startSettingsWorker();
+        long poll=0,statusAt=0,sampleAt=System.nanoTime(),sampleFrames=0;
+        String handledMcuRequest="";
         while(true) {
             long now=android.os.SystemClock.elapsedRealtime();
             try {
-                if(now>=poll) {
-                    Map<String,String> current=readSettings();mcu.poll(current);
-                    int capacity=Om2Output.customFirmware()?24:1;
-                    if(number(current,"beekeeper_net_capacity",0)!=capacity)putSetting("beekeeper_net_capacity",String.valueOf(capacity));
-                    Config next=new Config(readSettings());
-                    if(next.count!=capacity){putSetting("beekeeper_net_count",String.valueOf(capacity));next=new Config(readSettings());}
+                if(settingsReady&&now>=poll) {
+                    Map<String,String> current=settingsSnapshot;
+                    String request=current.getOrDefault("beekeeper_mcu_request","");
+                    if(request.isEmpty()||request.equals("null"))handledMcuRequest="";
+                    else if(!request.equals(handledMcuRequest)) {
+                        handledMcuRequest=request;mcu.poll(current);
+                        current=settingsSnapshot;now=android.os.SystemClock.elapsedRealtime();
+                    }
+                    Config next=new Config(current);
                     if(!next.same(config)) {
                         closePorts();release();config=next;
                         synchronized(mutex) {pending=null;sources.clear();ddpBuffer=null;receivedAt=0;rendered=serial;}
@@ -88,22 +99,59 @@ public final class NetworkDaemon {
                     if(config.enabled&&config.valid()&&!mcu.recoveryRequired()&&!portsOpen) openPorts();
                     if(mcu.recoveryRequired())closePorts();
                     if(!config.enabled||!config.valid()||mcu.recoveryRequired()||number(config.values,"atmosphere_light_switcher",1)==0) release();
-                    poll=now+700;
+                    poll=now+100;
                 }
+                now=android.os.SystemClock.elapsedRealtime();
                 byte[] frame=null;long id=0,at;
-                synchronized(mutex) {at=receivedAt;if(serial!=rendered&&pending!=null){frame=pending.clone();id=serial;}}
+                synchronized(mutex) {at=receivedAt;if(serial!=rendered&&pending!=null&&pacer.due(System.nanoTime())){frame=pending.clone();id=serial;}}
                 if(config.enabled&&config.valid()&&!mcu.recoveryRequired()&&number(config.values,"atmosphere_light_switcher",1)==1) {
-                    if(frame!=null&&now-at<3000) {takeOver();writeFrame(frame);rendered=id;error="";}
+                    if(frame!=null&&now-at<3000) {
+                        takeOver();long started=System.nanoTime();pacer.sent(started);
+                        try{writeFrame(frame);}catch(Exception e){outputErrors++;throw e;}
+                        if(previousOutputAt!=0){long gap=started-previousOutputAt;minOutputGap=Math.min(minOutputGap,gap);maxOutputGap=Math.max(maxOutputGap,gap);}
+                        previousOutputAt=started;outputFrames++;rendered=id;error="";
+                    }
                     else if(ownsDriver&&now-at>=3000) release();
                 }
                 if(now>=statusAt) {
+                    long sampleNow=System.nanoTime();double fps=(outputFrames-sampleFrames)*1e9/Math.max(1L,sampleNow-sampleAt);
                     String state=!config.enabled?"已关闭":mcu.recoveryRequired()?"MCU 刷写记录待检查，网络输出已暂停":!config.valid()?"请设置灯珠数量和通道":!error.isEmpty()?"错误："+error:
                             ownsDriver?"接收中 "+protocol+" · "+peer:"监听中 · 等待数据";
-                    putSetting("beekeeper_net_status",state+" · 收到 "+accepted+" 帧");statusAt=now+2000;
+                    pendingStatus=state+" · 收到 "+accepted+" 帧 · 输出 "+String.format(Locale.ROOT,"%.1f",fps)+"/24fps";
+                    pendingMetrics=String.format(Locale.ROOT,"frames=%d fps=%.2f errors=%d min_gap_ms=%.3f max_gap_ms=%.3f limit=24",outputFrames,fps,outputErrors,minOutputGap==Long.MAX_VALUE?0:minOutputGap/1e6,maxOutputGap/1e6);
+                    sampleAt=sampleNow;sampleFrames=outputFrames;statusAt=now+2000;
                 }
             } catch(Exception e) {error=e.getClass().getSimpleName()+": "+e.getMessage();System.err.println(error);try{release();}catch(Exception ignored){} }
-            Thread.sleep(50); // At most 20 driver frames/s; intermediate network frames are coalesced.
+            // Packet arrival wakes an idle renderer; a pending frame waits for the next 24fps slot.
+            synchronized(mutex) {
+                long delay=50_000_000L;
+                if(config.enabled&&config.valid()&&number(config.values,"atmosphere_light_switcher",1)==1&&serial!=rendered&&pending!=null)
+                    delay=Math.max(1_000_000L,Math.min(delay,pacer.delay(System.nanoTime())));
+                mutex.wait(delay/1_000_000L,(int)(delay%1_000_000L));
+            }
         }
+    }
+    private void startSettingsWorker() {
+        Thread worker=new Thread(()->{
+            String lastStatus="",lastMetrics="";
+            while(true) {
+                try {
+                    Map<String,String> values=readSettings();int capacity=Om2Output.customFirmware()?24:1;
+                    if(number(values,"beekeeper_net_capacity",0)!=capacity)putSetting("beekeeper_net_capacity",String.valueOf(capacity));
+                    if(number(values,"beekeeper_net_count",0)!=capacity)putSetting("beekeeper_net_count",String.valueOf(capacity));
+                    values.put("beekeeper_net_capacity",String.valueOf(capacity));values.put("beekeeper_net_count",String.valueOf(capacity));
+                    settingsSnapshot=Collections.unmodifiableMap(values);settingsReady=true;
+                    synchronized(mutex){mutex.notifyAll();}
+                    String status=pendingStatus,metrics=pendingMetrics;
+                    if(!status.isEmpty()&&!status.equals(lastStatus)){putSetting("beekeeper_net_status",status);lastStatus=status;}
+                    if(!metrics.isEmpty()&&!metrics.equals(lastMetrics)){putSetting("beekeeper_net_output_metrics",metrics);lastMetrics=metrics;}
+                } catch(Exception e) {
+                    // Keep the last valid configuration during transient SettingsProvider startup failures.
+                    System.err.println("Settings worker: "+e);
+                }
+                try{Thread.sleep(700);}catch(InterruptedException e){return;}
+            }
+        },"RGB-settings");worker.setDaemon(true);worker.start();
     }
     private void openPorts() throws Exception {
         Config c=config;
@@ -189,7 +237,7 @@ public final class NetworkDaemon {
                 if(p.sequence!=0)ddpSequence=p.sequence;
                 pending=ddpBuffer.clone();protocol="DDP";
             }
-            receivedAt=now;peer=address;serial++;accepted++;
+            receivedAt=now;peer=address;serial++;accepted++;mutex.notifyAll();
         }
     }
     private void takeOver() throws Exception {

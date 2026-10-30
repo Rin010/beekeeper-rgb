@@ -54,7 +54,8 @@ src=ROOT/'src/io/github/rin/beekeeper/rgb'
 for test,units in [
     ('RgbColorTest',['RgbColor']),('NetworkPacketTest',['NetworkPacket']),
     ('NetworkLimitsTest',['NetworkLimits']),('Om2FrameTest',['NetworkLimits','Om2Frame']),
-    ('SingleFrameTest',['SingleFrame']),('McuTest',['McuPolicy','McuProtocol'])]:
+    ('SingleFrameTest',['SingleFrame']),('FramePacerTest',['FramePacer']),
+    ('McuTest',['McuPolicy','McuProtocol'])]:
     run([JAVAC,'--release','8','-encoding','UTF-8','-d',BUILD/'test-classes',*[src/(n+'.java') for n in units],ROOT/'tests'/(test+'.java')])
     args=[JAVA,'-cp',BUILD/'test-classes',test]
     if test=='McuTest':args.extend([module/'firmware/original.bin',module/'firmware/pixels.bin'])

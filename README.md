@@ -1,4 +1,4 @@
-# Beekeeper RGB 1.0.0
+# Beekeeper RGB 1.4.1
 
 为 Redmi G Pro 27U（beekeeper）增加自定义装饰灯颜色、DDP / E1.31（sACN）网络控制，以及带版本校验的 MCU 固件管理。
 
@@ -42,7 +42,7 @@
 
 ## 安装
 
-1. 从 [Releases](https://github.com/Rin010/beekeeper-rgb/releases) 下载 `Beekeeper-RGB-v1.0.0-magisk.zip`，在已启动的系统中通过 Magisk 安装。
+1. 从 [Releases](https://github.com/Rin010/beekeeper-rgb/releases) 下载 `Beekeeper-RGB-v1.4.1-magisk.zip`，在已启动的系统中通过 Magisk 安装。
 2. 安装包已内置配套 LSPosed 模块 APK。LSPosed 框架本身需提前安装并启用。
 3. 首次在 LSPosed 启用“装饰灯自定义颜色”，勾选推荐作用域 `com.xiaomi.mitv.settings` 和 `mitv.service`。
 4. 重启后打开“设置 → 通用设置 → 氛围 → 炫彩灯”。“自定义颜色”和“网络灯控”位于“屏幕同色”上方。
